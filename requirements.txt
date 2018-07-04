@@ -1,0 +1,3 @@
+flask
+shelljob>=0.5.6
+netaddr>=0.7.19
