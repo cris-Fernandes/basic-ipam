@@ -43,3 +43,18 @@ def get_subnet():
     family_filter = request.args.get('family')
     cidrs = utils.read_cidrs(family_filter)
     return jsonify(cidrs)
+
+
+@app.route('/subnet/<cidr_id>', methods=['GET'])
+def get_subnet_entry(cidr_id):
+    cidrs = utils.read_cidr(cidr_id)
+    return jsonify(cidrs)
+
+
+@app.route('/subnet/<cidr_id>', methods=['DELETE'])
+def delete_subnet_entry(cidr_id):
+    rc = utils.delete_cidr(cidr_id)
+    if rc:
+        return make_response(
+            jsonify({'error': 'failed delete {} with rc {}'.format(cidr_id, rc)}), 400)
+    return ('', 204)

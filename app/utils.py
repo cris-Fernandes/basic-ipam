@@ -29,15 +29,13 @@ def save_cidr(cidr_dict):
 
 
 def read_cidr(cidr_id):
-    params_fixed = ["crudini", "--get", DB_FILE, str(cidr_id)]
-    cidr_dict = {"id": str(cidr_id)}
-    for k in ["family", "cidr"]:
-        raw_output, exit_code = proc.call(params_fixed + [k],
-                                          shell=False, check_exit_code=False)
-        if exit_code:
-            return None
-        cidr_dict[k] = str(raw_output).strip()
-    return cidr_dict
+    return read_cidrs(family_filter=None, cidr_id_filter=cidr_id)
+
+
+def delete_cidr(cidr_id):
+    params = ["crudini", "--del", DB_FILE, str(cidr_id)]
+    _raw_output, exit_code = proc.call(params, shell=False, check_exit_code=False)
+    return exit_code
 
 
 # Ref: https://stackoverflow.com/questions/18969801/best-approach-to-detect-subnet-overlap-in-a-postgresql-db#18970054  # noqa
@@ -78,9 +76,11 @@ def check_overlap(network):
     return False
 
 
-def read_cidrs(family_filter=None):
+def read_cidrs(family_filter=None, cidr_id_filter=None):
     cidr_raw = ''
     params = ['crudini', '--get', '--format=lines', DB_FILE]
+    if cidr_id_filter:
+        params.append(str(cidr_id_filter))
     output, exit_code = proc.call(params, shell=False, check_exit_code=False)
     if output and exit_code == 0:
         cidr_raw = str(output)

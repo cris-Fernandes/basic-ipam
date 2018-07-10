@@ -33,4 +33,8 @@ done
 curl -i http://localhost:8888/subnets
 
 curl -i http://localhost:8888/subnets?family=6
+
+curl -i http://localhost:8888/subnet/1
+
+curl -i -X DELETE http://localhost:8888/subnet/1
 ```
