@@ -36,5 +36,32 @@ curl -i http://localhost:8888/subnets?family=6
 
 curl -i http://localhost:8888/subnet/1
 
+# allocate address from existing subnet
+json=$(jq -n -r '{subnet_id: 1}')
+for _ in {1..3}; do \
+   curl -H "Cache-Control: no-cache" -H "Content-Type: application/json" \
+       -i -X POST -d "$json" http://localhost:8888/subnet_address
+done
+
+json=$(jq -n -r '{subnet_id: 2}')
+for _ in {1..3}; do \
+   curl -H "Cache-Control: no-cache" -H "Content-Type: application/json" \
+       -i -X POST -d "$json" http://localhost:8888/subnet_address
+done
+
+# show allocations
+curl -i http://localhost:8888/subnet_address/2
+
+# de-allocate
+json=$(jq -n -r '{subnet_id: 1, address: "2001:db8::1"}')
+curl -H "Cache-Control: no-cache" -H "Content-Type: application/json" \
+     -i -X DELETE -d "$json" http://localhost:8888/subnet_address
+
+json=$(jq -n -r '{subnet_id: 2, address: "1.1.1.4"}')
+curl -H "Cache-Control: no-cache" -H "Content-Type: application/json" \
+     -i -X DELETE -d "$json" http://localhost:8888/subnet_address
+
+# remove subnets and any remaining allocations
 curl -i -X DELETE http://localhost:8888/subnet/1
+curl -i -X DELETE http://localhost:8888/subnet/2
 ```

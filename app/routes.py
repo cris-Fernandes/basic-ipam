@@ -31,10 +31,10 @@ def create_subnet():
         return make_response('subnet overlaps with existing subnet\n', 400)
 
     next_id = utils.get_next_id()
-    cidr_dict = {"id": str(next_id), "family": str(network.version), "cidr": str(network)}
+    cidr_dict = {"subnet_id": str(next_id), "family": str(network.version), "cidr": str(network)}
 
-    utils.save_cidr(cidr_dict)
     utils.set_next_id(next_id + 1)
+    utils.save_cidr(cidr_dict)
     return make_response(jsonify(cidr_dict))
 
 
@@ -45,16 +45,79 @@ def get_subnet():
     return jsonify(cidrs)
 
 
-@app.route('/subnet/<cidr_id>', methods=['GET'])
-def get_subnet_entry(cidr_id):
-    cidrs = utils.read_cidr(cidr_id)
+@app.route('/subnet/<subnet_id>', methods=['GET'])
+def get_subnet_entry(subnet_id):
+    cidrs = utils.read_cidr(subnet_id)
     return jsonify(cidrs)
 
 
-@app.route('/subnet/<cidr_id>', methods=['DELETE'])
-def delete_subnet_entry(cidr_id):
-    rc = utils.delete_cidr(cidr_id)
+@app.route('/subnet/<subnet_id>', methods=['DELETE'])
+def delete_subnet_entry(subnet_id):
+    rc = utils.delete_cidr(subnet_id)
     if rc:
         return make_response(
-            jsonify({'error': 'failed delete {} with rc {}'.format(cidr_id, rc)}), 400)
-    return ('', 204)
+            jsonify({'error': 'failed delete {} with rc {}'.format(subnet_id, rc)}), 400)
+    return '', 204
+
+
+@app.route('/subnet_address', methods=['POST'])
+def allocate_addr_default_cidr():
+    subnet_id = None
+    if request.json:
+        subnet_id = request.json.get('subnet_id')
+    return _allocate_addr(subnet_id=subnet_id)
+
+
+@app.route('/subnet_address/<subnet_id>', methods=['POST'])
+def allocate_addr(subnet_id):
+    return _allocate_addr(subnet_id=subnet_id)
+
+
+@app.route('/subnet_address', methods=['DELETE'])
+def deallocate_addr_default_cidr1():
+    subnet_id = None
+    if request.json:
+        subnet_id = request.json.get('subnet_id')
+        address = request.json.get('address')
+    return _deallocate_addr(subnet_id=subnet_id, address=address)
+
+
+@app.route('/subnet_address/<address>', methods=['DELETE'])
+def deallocate_addr_default_cidr2(address):
+    subnet_id = None
+    if request.json:
+        subnet_id = request.json.get('subnet_id')
+    return _deallocate_addr(subnet_id=subnet_id, address=address)
+
+
+@app.route('/subnet_address/<subnet_id>/<address>', methods=['DELETE'])
+def deallocate_addr(subnet_id, address):
+    return _deallocate_addr(subnet_id=subnet_id, address=address)
+
+
+@app.route('/subnet_address/<subnet_id>', methods=['GET'])
+def get_subnet_allocations(subnet_id):
+    allocations = utils.read_subnet_allocations(subnet_id)
+    return jsonify(allocations)
+
+
+def _allocate_addr(subnet_id):
+    addr, msg = utils.allocate_addr(cidr_id=subnet_id)
+    if not addr:
+        if not subnet_id:
+            subnet_id = "default"
+        return make_response(
+            jsonify({'error': 'failed allocate from subnet_id {}: {}'.format(
+                subnet_id, msg)}), 400)
+    return jsonify(addr)
+
+
+def _deallocate_addr(subnet_id, address):
+    msg = utils.deallocate_addr(cidr_id=subnet_id, address=address)
+    if msg:
+        if not subnet_id:
+            subnet_id = "default"
+        return make_response(
+            jsonify({'error': 'failed deallocate {} from subnet_id {}: {}'.format(
+                address, subnet_id, msg)}), 400)
+    return '', 204

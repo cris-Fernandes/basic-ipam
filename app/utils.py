@@ -1,11 +1,15 @@
 import bisect
 import collections
 import re
+import time
+from datetime import datetime
 
 import netaddr
 from shelljob import proc
 
 DB_FILE = "/tmp/db.ini"
+DEFAULT_CIDR_ID = 1
+CIDR_ALLOC_SECTION = "allocations_pool_{}"
 
 
 def get_next_id():
@@ -23,7 +27,7 @@ def set_next_id(next_cidr_id):
 
 
 def save_cidr(cidr_dict):
-    params_fixed = ["crudini", "--set", DB_FILE, cidr_dict.get("id")]
+    params_fixed = ["crudini", "--set", DB_FILE, cidr_dict.get("subnet_id")]
     for k in ["family", "cidr"]:
         proc.call(params_fixed + [k, cidr_dict.get(k)], shell=False, check_exit_code=True)
 
@@ -35,6 +39,10 @@ def read_cidr(cidr_id):
 def delete_cidr(cidr_id):
     params = ["crudini", "--del", DB_FILE, str(cidr_id)]
     _raw_output, exit_code = proc.call(params, shell=False, check_exit_code=False)
+    if not exit_code:
+        # Purge away all known allocations to this cidr.
+        # Maybe that should prevent cidr from being removed?
+        _raw_output, exit_code = _delete_cidr_allocation(cidr_id)
     return exit_code
 
 
@@ -90,7 +98,7 @@ def read_cidrs(family_filter=None, cidr_id_filter=None):
     for cidr_id, cidr_attrs in od.items():
         if family_filter and cidr_attrs.get("family") != family_filter:
             continue
-        cidr_dict = {"id": str(cidr_id), "family": cidr_attrs.get("family"),
+        cidr_dict = {"subnet_id": str(cidr_id), "family": cidr_attrs.get("family"),
                      "cidr": cidr_attrs.get("cidr")}
         cidrs.append(cidr_dict)
     return cidrs
@@ -112,3 +120,97 @@ def _parse_cidr_raw(cidr_raw):
             cidr_dict[match.group(2)] = match.group(3)
             cidrs[cidr_id] = cidr_dict
     return cidrs
+
+
+def allocate_addr(cidr_id):
+    if not cidr_id:
+        cidr_id = DEFAULT_CIDR_ID
+    cidr_dict, allocations = _read_cidr_allocations(cidr_id)
+    if cidr_dict is None:
+        return None, "invalid address pool"
+    network = netaddr.IPNetwork(cidr_dict.get("cidr"))
+    ip_range = netaddr.iter_iprange(network.first, network.last)
+    for address_iter in ip_range:
+        address = str(address_iter)
+        if address in allocations:
+            continue
+        address_dict = {"subnet_id": cidr_dict.get("subnet_id"), "address": address}
+        raw_output, exit_code = _write_cidr_allocation(cidr_id, address)
+        if exit_code:
+            return None, "write error {} {}".format(exit_code, raw_output)
+        return address_dict, ''
+    return None, 'pool is depleted'
+
+
+def deallocate_addr(cidr_id, address):
+    if not cidr_id:
+        cidr_id = DEFAULT_CIDR_ID
+    if not address:
+        return "no valid address provided for deallocation"
+    # idem-potent
+    raw_output, exit_code = _delete_cidr_allocation(cidr_id, address)
+    if exit_code:
+        return "write error {} {}".format(exit_code, raw_output)
+    return None
+
+
+def read_subnet_allocations(cidr_id):
+    _cidr_dict, allocations = _read_cidr_allocations(cidr_id)
+    return list(allocations)
+
+
+def _parse_allocations_raw(allocations_raw):
+    allocations = []
+    try:
+        allocations_raw_lines = allocations_raw.split('\n')
+    except Exception:
+        allocations_raw_lines = []
+    for allocation_raw_line in allocations_raw_lines:
+        # Parse line from crudini output. It should look like this:
+        # [id] key = value  ==> [ allocations_pool_1 ] 2001_db8__ = 2018-01-01_01:01:01
+        match = re.search(r"^\s*\[\s*(.+)\s*\]\s*(\S+)\s*=\s*(.+)$", allocation_raw_line)
+        if match:
+            address_encoded = match.group(2)
+            # decode address in a way where '_' is replaced with ':'.
+            # This was done to make crudini happy
+            address = address_encoded.replace('_', ':')
+            allocations.append(str(address))
+    return allocations
+
+
+def _read_cidr_allocations(cidr_id):
+    section = CIDR_ALLOC_SECTION.format(cidr_id)
+    allocations = set()
+    # Make sure cidr_id exists
+    cidr_dicts = read_cidrs(family_filter=None, cidr_id_filter=cidr_id)
+    if not cidr_dicts:
+        return None, allocations
+    cidr_dict = cidr_dicts[0]
+    params = ['crudini', '--get', '--format=lines', DB_FILE, section]
+    output, exit_code = proc.call(params, shell=False, check_exit_code=False)
+    if exit_code == 0:
+        allocations.update(_parse_allocations_raw(output))
+    return cidr_dict, allocations
+
+
+def _write_cidr_allocation(cidr_id, address):
+    ts = time.time()
+    st = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S %Z')
+    return _update_cidr_allocation(cidr_id, "--set", address, st)
+
+
+def _delete_cidr_allocation(cidr_id, address=None):
+    return _update_cidr_allocation(cidr_id, "--del", address)
+
+
+def _update_cidr_allocation(cidr_id, operation, address, value=None):
+    section = CIDR_ALLOC_SECTION.format(cidr_id)
+    params = ['crudini', operation, DB_FILE, section]
+    if address:
+        # encode address in a way where ':' is replaced with '_'. This is to make crudini happy
+        address_encoded = address.replace(':', '_')
+        params.append(address_encoded)
+    if value:
+        params.append(value)
+    output, exit_code = proc.call(params, shell=False, check_exit_code=False)
+    return output, exit_code

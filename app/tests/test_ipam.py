@@ -57,7 +57,7 @@ class IpamAppTest(base.FlaskTest):
         self.assertEqual(s, 200)
         self.assertEqual(r.get("cidr"), "1.1.1.1/24")
         self.assertEqual(r.get("family"), "4")
-        self.assertEqual(r.get("id"), "1")
+        self.assertEqual(r.get("subnet_id"), "1")
         self.assertTrue(self.spcall.called)
 
     def test_create_subnet_family6(self):
@@ -65,5 +65,5 @@ class IpamAppTest(base.FlaskTest):
         self.assertEqual(s, 200)
         self.assertEqual(r.get("cidr"), "2001:eb8::/64")
         self.assertEqual(r.get("family"), "6")
-        self.assertEqual(r.get("id"), "1")
+        self.assertEqual(r.get("subnet_id"), "1")
         self.assertTrue(self.spcall.called)
