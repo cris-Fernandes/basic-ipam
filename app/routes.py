@@ -68,30 +68,13 @@ def allocate_addr_default_cidr():
     return _allocate_addr(subnet_id=subnet_id)
 
 
-@app.route('/subnet_address/<subnet_id>', methods=['POST'])
-def allocate_addr(subnet_id):
-    return _allocate_addr(subnet_id=subnet_id)
-
-
 @app.route('/subnet_address', methods=['DELETE'])
 def deallocate_addr_default_cidr1():
     subnet_id = None
+    address = None
     if request.json:
         subnet_id = request.json.get('subnet_id')
         address = request.json.get('address')
-    return _deallocate_addr(subnet_id=subnet_id, address=address)
-
-
-@app.route('/subnet_address/<address>', methods=['DELETE'])
-def deallocate_addr_default_cidr2(address):
-    subnet_id = None
-    if request.json:
-        subnet_id = request.json.get('subnet_id')
-    return _deallocate_addr(subnet_id=subnet_id, address=address)
-
-
-@app.route('/subnet_address/<subnet_id>/<address>', methods=['DELETE'])
-def deallocate_addr(subnet_id, address):
     return _deallocate_addr(subnet_id=subnet_id, address=address)
 
 
