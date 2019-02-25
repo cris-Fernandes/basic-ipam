@@ -56,7 +56,7 @@ def delete_subnet_entry(subnet_id):
     rc = utils.delete_cidr(subnet_id)
     if rc:
         return make_response(
-            jsonify({'error': 'failed delete {} with rc {}'.format(subnet_id, rc)}), 400)
+            jsonify({'error': 'failed to delete {} with rc {}'.format(subnet_id, rc)}), 400)
     return '', 204
 
 
@@ -90,7 +90,7 @@ def _allocate_addr(subnet_id):
         if not subnet_id:
             subnet_id = "default"
         return make_response(
-            jsonify({'error': 'failed allocate from subnet_id {}: {}'.format(
+            jsonify({'error': 'failed to allocate from subnet_id {}: {}'.format(
                 subnet_id, msg)}), 400)
     return jsonify(addr)
 
@@ -101,6 +101,6 @@ def _deallocate_addr(subnet_id, address):
         if not subnet_id:
             subnet_id = "default"
         return make_response(
-            jsonify({'error': 'failed deallocate {} from subnet_id {}: {}'.format(
+            jsonify({'error': 'failed to deallocate {} from subnet_id {}: {}'.format(
                 address, subnet_id, msg)}), 400)
     return '', 204
